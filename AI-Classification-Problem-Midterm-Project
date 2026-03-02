@@ -1,0 +1,81 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, classification_report
+import numpy as np
+
+# -----------------------
+# 1. Load and Prepare Data
+# -----------------------
+data = load_breast_cancer()
+X = data.data
+y = data.target
+
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+X_train = torch.tensor(X_train, dtype=torch.float32)
+X_test = torch.tensor(X_test, dtype=torch.float32)
+y_train = torch.tensor(y_train, dtype=torch.float32).view(-1, 1)
+y_test = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
+
+# -----------------------
+# 2. Define Deep Learning Model
+# -----------------------
+class NeuralNet(nn.Module):
+    def __init__(self, input_size):
+        super(NeuralNet, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(input_size, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+model = NeuralNet(X_train.shape[1])
+
+# -----------------------
+# 3. Loss and Optimizer
+# -----------------------
+criterion = nn.BCELoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# -----------------------
+# 4. Training Loop
+# -----------------------
+epochs = 50
+for epoch in range(epochs):
+    model.train()
+    optimizer.zero_grad()
+    outputs = model(X_train)
+    loss = criterion(outputs, y_train)
+    loss.backward()
+    optimizer.step()
+
+    if (epoch + 1) % 10 == 0:
+        print(f"Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.4f}")
+
+# -----------------------
+# 5. Evaluation
+# -----------------------
+model.eval()
+with torch.no_grad():
+    predictions = model(X_test)
+    predicted_labels = (predictions >= 0.5).float()
+
+accuracy = accuracy_score(y_test.numpy(), predicted_labels.numpy())
+print("\nTest Accuracy:", accuracy)
+print("\nClassification Report:")
+print(classification_report(y_test.numpy(), predicted_labels.numpy()))
